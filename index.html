@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FactureLibre — Générateur de factures et devis gratuit pour auto-entrepreneurs</title>
+<meta name="description" content="Créez gratuitement vos factures et devis d'auto-entrepreneur conformes (mentions légales, TVA non applicable art. 293 B du CGI). 100 % gratuit, sans inscription, vos données restent dans votre navigateur.">
+<style>
+  :root {
+    --ink: #1a2332;
+    --ink-soft: #5a6577;
+    --accent: #2456e6;
+    --accent-dark: #1a41b0;
+    --bg: #eef1f6;
+    --card: #ffffff;
+    --line: #dde3ec;
+    --ok: #1a8a4a;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  a { color: var(--accent); }
+
+  header.site {
+    background: var(--card);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  header.site .brand { font-size: 20px; font-weight: 700; }
+  header.site .brand span { color: var(--accent); }
+  header.site .tagline { font-size: 13px; color: var(--ink-soft); }
+
+  .wrap {
+    max-width: 1240px;
+    margin: 24px auto;
+    padding: 0 16px;
+    display: grid;
+    grid-template-columns: minmax(340px, 460px) 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--ink-soft);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .panel + .panel { margin-top: 18px; }
+
+  label { display: block; font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
+  input[type="text"], input[type="date"], input[type="number"], input[type="email"], textarea, select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font: inherit;
+    font-size: 14px;
+    background: #fbfcfe;
+  }
+  input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  textarea { resize: vertical; min-height: 54px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13.5px; }
+  .check input { width: auto; }
+
+  .doc-type {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+  .doc-type button {
+    flex: 1;
+    padding: 9px;
+    border: none;
+    background: #f2f5fa;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--ink-soft);
+  }
+  .doc-type button.active { background: var(--accent); color: #fff; }
+
+  table.items { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  table.items th {
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    padding: 4px 6px 4px 0;
+  }
+  table.items td { padding: 4px 6px 4px 0; vertical-align: top; }
+  table.items .del {
+    background: none;
+    border: none;
+    color: #c0392b;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 6px 4px;
+    line-height: 1;
+  }
+  .btn {
+    display: inline-block;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn:hover { background: var(--accent-dark); }
+  .btn.ghost {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  .btn.small { padding: 6px 12px; font-size: 13px; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  .hint { font-size: 12.5px; color: var(--ink-soft); margin-top: 8px; }
+  .saved-flash { color: var(--ok); font-size: 13px; font-weight: 600; display: none; }
+
+  /* ---------- Aperçu de la facture ---------- */
+  .preview-holder { position: sticky; top: 16px; }
+  .invoice {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 42px 46px;
+    min-height: 700px;
+    font-size: 14px;
+    box-shadow: 0 2px 14px rgba(20, 34, 70, .07);
+  }
+  .invoice header { display: flex; justify-content: space-between; gap: 20px; }
+  .invoice .from h1 { font-size: 21px; margin-bottom: 2px; }
+  .invoice .from p, .invoice .to p { font-size: 13px; color: #333; white-space: pre-line; }
+  .invoice .meta { text-align: right; }
+  .invoice .meta .doc-title {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .invoice .meta p { font-size: 13px; margin-top: 2px; }
+  .invoice .to { margin-top: 28px; }
+  .invoice .to .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #888;
+    margin-bottom: 3px;
+  }
+  .invoice .to .name { font-weight: 700; }
+
+  .invoice table.lines { width: 100%; border-collapse: collapse; margin-top: 26px; }
+  .invoice table.lines th {
+    background: #f2f5fa;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 2px solid var(--accent);
+  }
+  .invoice table.lines th.num, .invoice table.lines td.num { text-align: right; white-space: nowrap; }
+  .invoice table.lines td { padding: 9px 10px; border-bottom: 1px solid #eceff5; }
+  .invoice .totals { margin-top: 14px; margin-left: auto; width: 260px; }
+  .invoice .totals .trow { display: flex; justify-content: space-between; padding: 5px 10px; font-size: 13.5px; }
+  .invoice .totals .grand {
+    font-size: 16px;
+    font-weight: 800;
+    border-top: 2px solid var(--accent);
+    margin-top: 4px;
+    padding-top: 8px;
+  }
+  .invoice .notes { margin-top: 30px; font-size: 12.5px; color: #444; white-space: pre-line; }
+  .invoice .legal {
+    margin-top: 34px;
+    padding-top: 12px;
+    border-top: 1px solid #e3e7ef;
+    font-size: 10.5px;
+    color: #777;
+    line-height: 1.55;
+  }
+
+  /* ---------- Section SEO / footer ---------- */
+  .seo {
+    max-width: 860px;
+    margin: 40px auto;
+    padding: 0 16px;
+    color: var(--ink-soft);
+    font-size: 14.5px;
+  }
+  .seo h2 { color: var(--ink); font-size: 19px; margin: 26px 0 8px; }
+  .seo h3 { color: var(--ink); font-size: 16px; margin: 18px 0 6px; }
+  .seo p { margin-bottom: 10px; }
+  .seo ul { margin: 0 0 10px 22px; }
+  .support {
+    max-width: 860px;
+    margin: 20px auto;
+    padding: 18px 20px;
+    background: #fff7e8;
+    border: 1px solid #f0dfb8;
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+  footer.site {
+    text-align: center;
+    padding: 26px 16px 40px;
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- Impression : uniquement la facture ---------- */
+  @media print {
+    body { background: #fff; }
+    header.site, .form-col, .seo, .support, footer.site, .actions-preview { display: none !important; }
+    .wrap { display: block; margin: 0; padding: 0; max-width: none; }
+    .preview-holder { position: static; }
+    .invoice {
+      border: none;
+      box-shadow: none;
+      border-radius: 0;
+      padding: 10mm 8mm;
+      min-height: auto;
+    }
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div>
+    <div class="brand">Facture<span>Libre</span></div>
+    <div class="tagline">Factures &amp; devis d'auto-entrepreneur — gratuit, sans inscription, sans envoi de données</div>
+  </div>
+  <div class="saved-flash" id="savedFlash">✓ Enregistré dans ce navigateur</div>
+</header>
+
+<div class="wrap">
+  <!-- ============ COLONNE FORMULAIRE ============ -->
+  <div class="form-col">
+
+    <div class="panel">
+      <h2>Type de document</h2>
+      <div class="doc-type">
+        <button type="button" id="btnFacture" class="active">Facture</button>
+        <button type="button" id="btnDevis">Devis</button>
+      </div>
+      <div class="row2">
+        <div>
+          <label for="docNumber">Numéro</label>
+          <input type="text" id="docNumber" placeholder="2026-001">
+        </div>
+        <div>
+          <label for="docDate">Date d'émission</label>
+          <input type="date" id="docDate">
+        </div>
+      </div>
+      <div class="row2">
+        <div>
+          <label for="dueDate" id="dueDateLabel">Date d'échéance</label>
+          <input type="date" id="dueDate">
+        </div>
+        <div>
+          <label for="payMethod">Mode de règlement</label>
+          <select id="payMethod">
+            <option>Virement bancaire</option>
+            <option>Chèque</option>
+            <option>Espèces</option>
+            <option>Carte bancaire</option>
+            <option>PayPal</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Vous (émetteur)</h2>
+      <label for="fromName">Nom / raison sociale</label>
+      <input type="text" id="fromName" placeholder="Jean Dupont EI">
+      <label for="fromAddress">Adresse</label>
+      <textarea id="fromAddress" placeholder="12 rue des Lilas&#10;75011 Paris"></textarea>
+      <div class="row2">
+        <div>
+          <label for="fromSiret">SIRET</label>
+          <input type="text" id="fromSiret" placeholder="123 456 789 00012">
+        </div>
+        <div>
+          <label for="fromPhone">Téléphone</label>
+          <input type="text" id="fromPhone" placeholder="06 12 34 56 78">
+        </div>
+      </div>
+      <label for="fromEmail">E-mail</label>
+      <input type="email" id="fromEmail" placeholder="jean@exemple.fr">
+      <div class="check">
+        <input type="checkbox" id="franchiseTva" checked>
+        <label for="franchiseTva" style="margin:0; font-weight:500;">Franchise en base de TVA (auto-entrepreneur, art. 293 B du CGI)</label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Client</h2>
+      <label for="toName">Nom / société</label>
+      <input type="text" id="toName" placeholder="ACME SARL">
+      <label for="toAddress">Adresse</label>
+      <textarea id="toAddress" placeholder="4 avenue de la République&#10;69002 Lyon"></textarea>
+      <label for="toSiret">SIRET / TVA intracom. (optionnel)</label>
+      <input type="text" id="toSiret" placeholder="987 654 321 00021">
+    </div>
+
+    <div class="panel">
+      <h2>Prestations</h2>
+      <table class="items">
+        <thead>
+          <tr>
+            <th style="width:46%">Description</th>
+            <th style="width:16%">Qté</th>
+            <th style="width:28%">Prix unit. €</th>
+            <th style="width:10%"></th>
+          </tr>
+        </thead>
+        <tbody id="itemsBody"></tbody>
+      </table>
+      <button type="button" class="btn ghost small" id="addItem" style="margin-top:10px;">+ Ajouter une ligne</button>
+      <label for="notes" style="margin-top:16px;">Notes (affichées sur le document)</label>
+      <textarea id="notes" placeholder="Merci de votre confiance."></textarea>
+    </div>
+
+    <div class="panel">
+      <h2>Actions</h2>
+      <div class="actions">
+        <button type="button" class="btn" id="printBtn">🖨️ Imprimer / PDF</button>
+        <button type="button" class="btn ghost" id="resetBtn">Réinitialiser</button>
+      </div>
+      <p class="hint">💾 Tout est enregistré automatiquement <strong>dans votre navigateur uniquement</strong> — aucune donnée n'est envoyée sur Internet. Pour obtenir un PDF : « Imprimer / PDF » puis choisissez « Enregistrer au format PDF ».</p>
+    </div>
+  </div>
+
+  <!-- ============ COLONNE APERÇU ============ -->
+  <div class="preview-holder">
+    <div class="invoice" id="invoice">
+      <header>
+        <div class="from">
+          <h1 id="pFromName">Votre nom</h1>
+          <p id="pFromAddress"></p>
+          <p id="pFromContact"></p>
+          <p id="pFromSiret"></p>
+        </div>
+        <div class="meta">
+          <div class="doc-title" id="pDocTitle">Facture</div>
+          <p><strong>N° <span id="pDocNumber">—</span></strong></p>
+          <p>Date : <span id="pDocDate">—</span></p>
+          <p id="pDueLine">Échéance : <span id="pDueDate">—</span></p>
+        </div>
+      </header>
+
+      <div class="to">
+        <div class="label" id="pToLabel">Facturé à</div>
+        <p class="name" id="pToName">—</p>
+        <p id="pToAddress"></p>
+        <p id="pToSiret"></p>
+      </div>
+
+      <table class="lines">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th class="num">Qté</th>
+            <th class="num">Prix unit.</th>
+            <th class="num">Montant</th>
+          </tr>
+        </thead>
+        <tbody id="pLines"></tbody>
+      </table>
+
+      <div class="totals">
+        <div class="trow"><span>Total HT</span><span id="pTotalHT">0,00 €</span></div>
+        <div class="trow" id="pTvaRow" style="display:none;"><span>TVA (20 %)</span><span id="pTva">0,00 €</span></div>
+        <div class="trow grand"><span id="pGrandLabel">Net à payer</span><span id="pGrandTotal">0,00 €</span></div>
+      </div>
+
+      <div class="notes" id="pNotes"></div>
+
+      <div class="legal" id="pLegal"></div>
+    </div>
+  </div>
+</div>
+
+<div class="support">
+  ☕ <strong>Cet outil vous fait gagner du temps ?</strong> Il est gratuit et le restera.
+  Vous pouvez soutenir son développement ici : <a href="#" id="supportLink">soutenir le projet</a>.
+</div>
+
+<!-- ============ CONTENU SEO ============ -->
+<div class="seo">
+  <h2>Générateur de factures gratuit pour auto-entrepreneurs et micro-entreprises</h2>
+  <p>FactureLibre vous permet de créer en quelques minutes une <strong>facture d'auto-entrepreneur conforme</strong> ou un <strong>devis professionnel</strong>, sans inscription, sans logiciel à installer et sans abonnement. Vos données restent dans votre navigateur : rien n'est envoyé sur un serveur.</p>
+
+  <h3>Les mentions obligatoires sont incluses automatiquement</h3>
+  <ul>
+    <li>Mention <em>« TVA non applicable, art. 293 B du CGI »</em> pour la franchise en base de TVA ;</li>
+    <li>Pénalités de retard et indemnité forfaitaire de recouvrement de 40 € (articles L441-10 et D441-5 du Code de commerce) ;</li>
+    <li>Conditions d'escompte ;</li>
+    <li>Numéro SIRET, date d'émission, numéro de facture séquentiel.</li>
+  </ul>
+
+  <h3>Comment créer votre facture ?</h3>
+  <p>1. Renseignez vos coordonnées et celles de votre client. 2. Ajoutez vos prestations avec quantité et prix. 3. Cliquez sur « Imprimer / PDF » et choisissez « Enregistrer au format PDF ». C'est tout — votre facture est prête à être envoyée.</p>
+
+  <h3>Facture ou devis ?</h3>
+  <p>Basculez en un clic entre facture et devis. Le devis reprend les mêmes informations avec une mention de validité et un encart de signature « Bon pour accord », comme l'exigent les usages professionnels.</p>
+</div>
+
+<footer class="site">
+  FactureLibre — outil gratuit et open source. Aucune donnée collectée.
+  <br>Cet outil ne constitue pas un conseil juridique ou comptable ; vérifiez vos obligations sur <a href="https://entreprendre.service-public.fr" rel="noopener">entreprendre.service-public.fr</a>.
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORAGE_KEY = "facturelibre_v1";
+  var state = {
+    docType: "facture",
+    items: [{ desc: "", qty: 1, price: 0 }]
+  };
+
+  var fields = [
+    "docNumber", "docDate", "dueDate", "payMethod",
+    "fromName", "fromAddress", "fromSiret", "fromPhone", "fromEmail",
+    "toName", "toAddress", "toSiret", "notes"
+  ];
+
+  function $(id) { return document.getElementById(id); }
+
+  function euros(n) {
+    return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+  }
+
+  function frDate(iso) {
+    if (!iso) return "—";
+    var p = iso.split("-");
+    return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : iso;
+  }
+
+  /* ---------- Persistance locale ---------- */
+  var saveTimer = null;
+  function save() {
+    var data = { docType: state.docType, items: state.items, franchiseTva: $("franchiseTva").checked };
+    fields.forEach(function (f) { data[f] = $(f).value; });
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) { /* stockage indisponible */ }
+    var flash = $("savedFlash");
+    flash.style.display = "block";
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () { flash.style.display = "none"; }, 1500);
+  }
+
+  function load() {
+    var raw = null;
+    try { raw = localStorage.getItem(STORAGE_KEY); } catch (e) { /* stockage indisponible */ }
+    if (!raw) return;
+    try {
+      var data = JSON.parse(raw);
+      state.docType = data.docType === "devis" ? "devis" : "facture";
+      state.items = Array.isArray(data.items) && data.items.length ? data.items : state.items;
+      fields.forEach(function (f) { if (typeof data[f] === "string") $(f).value = data[f]; });
+      $("franchiseTva").checked = data.franchiseTva !== false;
+    } catch (e) { /* données corrompues : on repart de zéro */ }
+  }
+
+  /* ---------- Lignes de prestation ---------- */
+  function renderItemRows() {
+    var tbody = $("itemsBody");
+    tbody.innerHTML = "";
+    state.items.forEach(function (item, i) {
+      var tr = document.createElement("tr");
+
+      var tdDesc = document.createElement("td");
+      var inDesc = document.createElement("input");
+      inDesc.type = "text";
+      inDesc.value = item.desc;
+      inDesc.placeholder = "Prestation de développement web";
+      inDesc.addEventListener("input", function () { item.desc = inDesc.value; refresh(); });
+      tdDesc.appendChild(inDesc);
+
+      var tdQty = document.createElement("td");
+      var inQty = document.createElement("input");
+      inQty.type = "number";
+      inQty.min = "0";
+      inQty.step = "0.5";
+      inQty.value = item.qty;
+      inQty.addEventListener("input", function () { item.qty = parseFloat(inQty.value) || 0; refresh(); });
+      tdQty.appendChild(inQty);
+
+      var tdPrice = document.createElement("td");
+      var inPrice = document.createElement("input");
+      inPrice.type = "number";
+      inPrice.min = "0";
+      inPrice.step = "0.01";
+      inPrice.value = item.price;
+      inPrice.addEventListener("input", function () { item.price = parseFloat(inPrice.value) || 0; refresh(); });
+      tdPrice.appendChild(inPrice);
+
+      var tdDel = document.createElement("td");
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "del";
+      btn.title = "Supprimer la ligne";
+      btn.textContent = "×";
+      btn.addEventListener("click", function () {
+        state.items.splice(i, 1);
+        if (!state.items.length) state.items.push({ desc: "", qty: 1, price: 0 });
+        renderItemRows();
+        refresh();
+      });
+      tdDel.appendChild(btn);
+
+      tr.appendChild(tdDesc);
+      tr.appendChild(tdQty);
+      tr.appendChild(tdPrice);
+      tr.appendChild(tdDel);
+      tbody.appendChild(tr);
+    });
+  }
+
+  /* ---------- Aperçu ---------- */
+  function refresh() {
+    var isDevis = state.docType === "devis";
+    var franchise = $("franchiseTva").checked;
+
+    $("btnFacture").classList.toggle("active", !isDevis);
+    $("btnDevis").classList.toggle("active", isDevis);
+    $("pDocTitle").textContent = isDevis ? "Devis" : "Facture";
+    $("pToLabel").textContent = isDevis ? "Adressé à" : "Facturé à";
+    $("dueDateLabel").textContent = isDevis ? "Valable jusqu'au" : "Date d'échéance";
+    $("pGrandLabel").textContent = isDevis ? "Total" : "Net à payer";
+
+    $("pFromName").textContent = $("fromName").value || "Votre nom";
+    $("pFromAddress").textContent = $("fromAddress").value;
+    var contact = [$("fromPhone").value, $("fromEmail").value].filter(Boolean).join(" · ");
+    $("pFromContact").textContent = contact;
+    $("pFromSiret").textContent = $("fromSiret").value ? "SIRET : " + $("fromSiret").value : "";
+
+    $("pDocNumber").textContent = $("docNumber").value || "—";
+    $("pDocDate").textContent = frDate($("docDate").value);
+    $("pDueLine").firstChild.textContent = (isDevis ? "Validité : " : "Échéance : ");
+    $("pDueDate").textContent = frDate($("dueDate").value);
+
+    $("pToName").textContent = $("toName").value || "—";
+    $("pToAddress").textContent = $("toAddress").value;
+    $("pToSiret").textContent = $("toSiret").value ? "SIRET / TVA : " + $("toSiret").value : "";
+
+    var tbody = $("pLines");
+    tbody.innerHTML = "";
+    var totalHT = 0;
+    state.items.forEach(function (item) {
+      if (!item.desc && !item.price) return;
+      var amount = (item.qty || 0) * (item.price || 0);
+      totalHT += amount;
+      var tr = document.createElement("tr");
+      [item.desc || "—",
+       String(item.qty || 0),
+       euros(item.price || 0),
+       euros(amount)].forEach(function (txt, idx) {
+        var td = document.createElement("td");
+        if (idx > 0) td.className = "num";
+        td.textContent = txt;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+
+    var tva = franchise ? 0 : totalHT * 0.20;
+    $("pTvaRow").style.display = franchise ? "none" : "flex";
+    $("pTotalHT").textContent = euros(totalHT);
+    $("pTva").textContent = euros(tva);
+    $("pGrandTotal").textContent = euros(totalHT + tva);
+
+    $("pNotes").textContent = $("notes").value;
+
+    var legal = [];
+    if (franchise) legal.push("TVA non applicable, art. 293 B du CGI.");
+    if (isDevis) {
+      legal.push("Devis gratuit. Pour accord, retourner ce devis daté et signé avec la mention « Bon pour accord ».");
+    } else {
+      legal.push("Règlement : " + $("payMethod").value + ". En cas de retard de paiement, pénalités égales à 3 fois le taux d'intérêt légal (art. L441-10 du Code de commerce) et indemnité forfaitaire pour frais de recouvrement de 40 € (art. D441-5). Pas d'escompte pour paiement anticipé.");
+    }
+    legal.push("Dispensé d'immatriculation au RCS et au répertoire des métiers le cas échéant.");
+    $("pLegal").textContent = legal.join(" ");
+  }
+
+  /* ---------- Événements ---------- */
+  fields.forEach(function (f) {
+    $(f).addEventListener("input", function () { refresh(); save(); });
+  });
+  $("franchiseTva").addEventListener("change", function () { refresh(); save(); });
+  $("btnFacture").addEventListener("click", function () { state.docType = "facture"; refresh(); save(); });
+  $("btnDevis").addEventListener("click", function () { state.docType = "devis"; refresh(); save(); });
+  $("addItem").addEventListener("click", function () {
+    state.items.push({ desc: "", qty: 1, price: 0 });
+    renderItemRows();
+    refresh();
+    save();
+  });
+  $("itemsBody").addEventListener("input", save);
+  $("printBtn").addEventListener("click", function () { window.print(); });
+  $("resetBtn").addEventListener("click", function () {
+    if (!confirm("Effacer toutes les données saisies ?")) return;
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignoré */ }
+    location.reload();
+  });
+
+  /* ---------- Initialisation ---------- */
+  load();
+  if (!$("docDate").value) {
+    $("docDate").value = new Date().toISOString().slice(0, 10);
+  }
+  renderItemRows();
+  refresh();
+})();
+</script>
+</body>
+</html>

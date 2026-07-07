@@ -20,6 +20,9 @@ auto-entrepreneurs et micro-entreprises** françaises.
 - **Historique local** : documents enregistrés dans le navigateur,
   numérotation automatique continue, carnet de clients, duplication,
   sauvegarde/restauration par fichier JSON — toujours sans compte ni serveur.
+- **Catalogue de prestations** : libellés et prix unitaires mémorisés
+  automatiquement, suggérés pendant la frappe (autocomplétion), prix
+  pré-rempli pour les prestations connues.
 - Zéro dépendance, un seul fichier : [`index.html`](index.html).
 - Coût d'hébergement : **0 €** (GitHub Pages).
 

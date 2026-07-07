@@ -17,6 +17,9 @@ auto-entrepreneurs et micro-entreprises** françaises.
 - Export PDF via l'impression du navigateur (mise en page dédiée).
 - **Export Factur-X** (XML CII, profil BASIC) : le format de la réforme de la
   facturation électronique 2026-2027, généré côté client.
+- **Historique local** : documents enregistrés dans le navigateur,
+  numérotation automatique continue, carnet de clients, duplication,
+  sauvegarde/restauration par fichier JSON — toujours sans compte ni serveur.
 - Zéro dépendance, un seul fichier : [`index.html`](index.html).
 - Coût d'hébergement : **0 €** (GitHub Pages).
 

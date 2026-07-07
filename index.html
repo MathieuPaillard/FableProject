@@ -377,7 +377,9 @@
         </thead>
         <tbody id="itemsBody"></tbody>
       </table>
+      <datalist id="productsList"></datalist>
       <button type="button" class="btn ghost small" id="addItem" style="margin-top:10px;">+ Ajouter une ligne</button>
+      <p class="hint">💡 Vos prestations déjà facturées sont suggérées pendant la frappe ; choisir une prestation connue remplit son prix automatiquement.</p>
       <label for="notes" style="margin-top:16px;">Notes (affichées sur le document)</label>
       <textarea id="notes" placeholder="Merci de votre confiance."></textarea>
     </div>
@@ -403,6 +405,7 @@
         <button type="button" class="btn ghost small" id="importDataBtn">⬆ Importer une sauvegarde</button>
         <input type="file" id="importFile" accept="application/json,.json" style="display:none;">
       </div>
+      <p class="hint" id="productsInfo">🏷️ 0 prestation mémorisée pour l'autocomplétion. <a href="#" id="clearProductsBtn" style="display:none;">vider</a></p>
       <p class="hint">L'historique vit <strong>uniquement dans ce navigateur</strong>. Pensez à exporter régulièrement votre sauvegarde (changement d'ordinateur, nettoyage du navigateur…).</p>
     </div>
   </div>
@@ -482,7 +485,7 @@
   <p>Basculez en un clic entre facture et devis. Le devis reprend les mêmes informations avec une mention de validité et un encart de signature « Bon pour accord », comme l'exigent les usages professionnels.</p>
 
   <h3>Un vrai logiciel, sans compte ni serveur</h3>
-  <p>FactureLibre mémorise vos factures <strong>dans votre navigateur</strong> : historique de vos documents, <strong>numérotation automatique continue</strong> (l'exigence n° 1 de l'administration), carnet de clients réutilisables, duplication en un clic, et sauvegarde/restauration par fichier pour changer d'ordinateur. Tout cela sans créer de compte : vos données ne sont jamais envoyées sur un serveur.</p>
+  <p>FactureLibre mémorise vos factures <strong>dans votre navigateur</strong> : historique de vos documents, <strong>numérotation automatique continue</strong> (l'exigence n° 1 de l'administration), carnet de clients réutilisables, <strong>catalogue de prestations avec autocomplétion</strong> (vos libellés et prix habituels suggérés pendant la frappe), duplication en un clic, et sauvegarde/restauration par fichier pour changer d'ordinateur. Tout cela sans créer de compte : vos données ne sont jamais envoyées sur un serveur.</p>
 
   <h3>Prêt pour la facturation électronique (2026-2027)</h3>
   <p>FactureLibre exporte vos factures au format <strong>Factur-X (XML structuré, profil BASIC)</strong> — le format officiel de la réforme de la facturation électronique. Vos factures sont prêtes à être déposées sur votre future plateforme de dématérialisation, dès aujourd'hui.</p>
@@ -565,7 +568,16 @@
       inDesc.type = "text";
       inDesc.value = item.desc;
       inDesc.placeholder = "Prestation de développement web";
-      inDesc.addEventListener("input", function () { item.desc = inDesc.value; refresh(); });
+      inDesc.setAttribute("list", "productsList");
+      inDesc.addEventListener("input", function () {
+        item.desc = inDesc.value;
+        var known = findProduct(inDesc.value);
+        if (known && !(item.price > 0)) {
+          item.price = known.price;
+          inPrice.value = known.price;
+        }
+        refresh();
+      });
       tdDesc.appendChild(inDesc);
 
       var tdQty = document.createElement("td");
@@ -841,6 +853,55 @@
     try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* stockage indisponible */ }
   }
 
+  var PRODUCTS_KEY = "facturelibre_products_v1";
+  var PRODUCTS_MAX = 200;
+
+  function normDesc(s) { return String(s || "").trim().toLowerCase(); }
+
+  function upsertProducts(items) {
+    var products = readJson(PRODUCTS_KEY, []);
+    var now = new Date().toISOString();
+    items.forEach(function (it) {
+      if (!it.desc || !(it.price > 0)) return;
+      var key = normDesc(it.desc);
+      var idx = -1;
+      products.forEach(function (p, i) { if (normDesc(p.desc) === key) idx = i; });
+      var entry = { desc: it.desc.trim(), price: it.price, usedAt: now };
+      if (idx >= 0) products[idx] = entry; else products.push(entry);
+    });
+    if (products.length > PRODUCTS_MAX) {
+      products.sort(function (a, b) { return String(a.usedAt).localeCompare(String(b.usedAt)); });
+      products = products.slice(products.length - PRODUCTS_MAX);
+    }
+    writeJson(PRODUCTS_KEY, products);
+  }
+
+  function findProduct(desc) {
+    var key = normDesc(desc);
+    if (!key) return null;
+    var products = readJson(PRODUCTS_KEY, []);
+    for (var i = 0; i < products.length; i++) {
+      if (normDesc(products[i].desc) === key) return products[i];
+    }
+    return null;
+  }
+
+  function renderProductsList() {
+    var products = readJson(PRODUCTS_KEY, []);
+    var dl = $("productsList");
+    dl.innerHTML = "";
+    products.slice().sort(function (a, b) { return String(b.usedAt).localeCompare(String(a.usedAt)); })
+      .forEach(function (p) {
+        var opt = document.createElement("option");
+        opt.value = p.desc;
+        opt.label = euros(p.price);
+        dl.appendChild(opt);
+      });
+    var n = products.length;
+    $("productsInfo").firstChild.textContent = "🏷️ " + n + " prestation" + (n > 1 ? "s" : "") + " mémorisée" + (n > 1 ? "s" : "") + " pour l'autocomplétion. ";
+    $("clearProductsBtn").style.display = n ? "" : "none";
+  }
+
   function currentTotal() {
     var totalHT = 0;
     state.items.forEach(function (it) { totalHT += (it.qty || 0) * (it.price || 0); });
@@ -878,8 +939,10 @@
       if (ci >= 0) clients[ci] = client; else clients.push(client);
       writeJson(CLIENTS_KEY, clients);
     }
+    upsertProducts(doc.items);
     renderHistory();
     renderClientSelect();
+    renderProductsList();
     var flash = $("savedFlash");
     flash.style.display = "block";
     clearTimeout(saveTimer);
@@ -1020,7 +1083,8 @@
       exportedAt: new Date().toISOString(),
       current: (function () { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) { return null; } })(),
       docs: readJson(DOCS_KEY, []),
-      clients: readJson(CLIENTS_KEY, [])
+      clients: readJson(CLIENTS_KEY, []),
+      products: readJson(PRODUCTS_KEY, [])
     };
     var blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     var url = URL.createObjectURL(blob);
@@ -1043,6 +1107,7 @@
       if (!confirm("Restaurer cette sauvegarde (" + nb + " document(s)) ? Les données actuelles de ce navigateur seront remplacées.")) return;
       writeJson(DOCS_KEY, Array.isArray(payload.docs) ? payload.docs : []);
       writeJson(CLIENTS_KEY, Array.isArray(payload.clients) ? payload.clients : []);
+      writeJson(PRODUCTS_KEY, Array.isArray(payload.products) ? payload.products : []);
       try { if (payload.current) localStorage.setItem(STORAGE_KEY, JSON.stringify(payload.current)); } catch (e) { /* ignoré */ }
       location.reload();
     };
@@ -1078,6 +1143,12 @@
     refresh();
     save();
   });
+  $("clearProductsBtn").addEventListener("click", function (e) {
+    e.preventDefault();
+    if (!confirm("Vider les prestations mémorisées pour l'autocomplétion ? (L'historique des factures est conservé.)")) return;
+    writeJson(PRODUCTS_KEY, []);
+    renderProductsList();
+  });
   $("exportDataBtn").addEventListener("click", exportData);
   $("importDataBtn").addEventListener("click", function () { $("importFile").click(); });
   $("importFile").addEventListener("change", function () {
@@ -1098,6 +1169,7 @@
   renderItemRows();
   renderHistory();
   renderClientSelect();
+  renderProductsList();
   refresh();
 })();
 </script>

@@ -15,6 +15,8 @@ auto-entrepreneurs et micro-entreprises** françaises.
   forfaitaire de 40 € (art. D441-5), « Bon pour accord » sur les devis.
 - Calcul automatique des totaux, avec ou sans TVA (20 %).
 - Export PDF via l'impression du navigateur (mise en page dédiée).
+- **Export Factur-X** (XML CII, profil BASIC) : le format de la réforme de la
+  facturation électronique 2026-2027, généré côté client.
 - Zéro dépendance, un seul fichier : [`index.html`](index.html).
 - Coût d'hébergement : **0 €** (GitHub Pages).
 

@@ -50,6 +50,13 @@ directement sur le site du service), puis ajouter dans la section SEO de
 qui déclare l'URSSAF à votre place ». **Une seule conversion peut rapporter
 50-150 €.** C'est le canal au meilleur ratio effort/revenu pour ce type d'outil.
 
+**Emplacement supplémentaire (réforme 2026-2027)** : la page
+`facturation-electronique-auto-entrepreneur.html` contient un encart
+« choisir sa plateforme » prévu pour recevoir les liens d'affiliation vers les
+logiciels raccordés aux PDP (Indy, Abby, Freebe…). Tous les indépendants
+devront choisir une plateforme d'ici 2027 : c'est l'emplacement d'affiliation
+au plus fort potentiel du site.
+
 ## Étape 4 — Trafic (la condition de tout le reste)
 
 Sans visiteurs, pas de revenu. Actions gratuites, par ordre d'efficacité :

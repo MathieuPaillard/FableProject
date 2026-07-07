@@ -357,9 +357,11 @@
       <h2>Actions</h2>
       <div class="actions">
         <button type="button" class="btn" id="printBtn">🖨️ Imprimer / PDF</button>
+        <button type="button" class="btn ghost" id="facturxBtn">⬇ Export Factur-X (XML)</button>
         <button type="button" class="btn ghost" id="resetBtn">Réinitialiser</button>
       </div>
       <p class="hint">💾 Tout est enregistré automatiquement <strong>dans votre navigateur uniquement</strong> — aucune donnée n'est envoyée sur Internet. Pour obtenir un PDF : « Imprimer / PDF » puis choisissez « Enregistrer au format PDF ».</p>
+      <p class="hint">🇪🇺 <strong>Factur-X</strong> : exporte votre facture en XML structuré (profil BASIC), le format de la réforme de la facturation électronique 2026-2027. Pour l'envoi légal à un client professionnel à partir de 2027, ce fichier devra être déposé sur votre plateforme de dématérialisation (PDP). <a href="facturation-electronique-auto-entrepreneur.html">En savoir plus</a>.</p>
     </div>
   </div>
 
@@ -437,8 +439,12 @@
   <h3>Facture ou devis ?</h3>
   <p>Basculez en un clic entre facture et devis. Le devis reprend les mêmes informations avec une mention de validité et un encart de signature « Bon pour accord », comme l'exigent les usages professionnels.</p>
 
+  <h3>Prêt pour la facturation électronique (2026-2027)</h3>
+  <p>FactureLibre exporte vos factures au format <strong>Factur-X (XML structuré, profil BASIC)</strong> — le format officiel de la réforme de la facturation électronique. Vos factures sont prêtes à être déposées sur votre future plateforme de dématérialisation, dès aujourd'hui.</p>
+
   <h3>Pour aller plus loin</h3>
   <ul>
+    <li><a href="facturation-electronique-auto-entrepreneur.html">Facturation électronique : ce qui change pour les auto-entrepreneurs en 2026-2027</a></li>
     <li><a href="mentions-obligatoires-facture.html">Les mentions obligatoires sur une facture d'auto-entrepreneur</a></li>
     <li><a href="modele-devis-auto-entrepreneur.html">Modèle de devis auto-entrepreneur : ce qu'il doit contenir</a></li>
   </ul>
@@ -568,6 +574,7 @@
     $("pToLabel").textContent = isDevis ? "Adressé à" : "Facturé à";
     $("dueDateLabel").textContent = isDevis ? "Valable jusqu'au" : "Date d'échéance";
     $("pGrandLabel").textContent = isDevis ? "Total" : "Net à payer";
+    $("facturxBtn").style.display = isDevis ? "none" : "";
 
     $("pFromName").textContent = $("fromName").value || "Votre nom";
     $("pFromAddress").textContent = $("fromAddress").value;
@@ -623,6 +630,157 @@
     $("pLegal").textContent = legal.join(" ");
   }
 
+  /* ---------- Export Factur-X (CII, profil BASIC) ---------- */
+  function xmlEscape(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+  }
+
+  function dt102(iso) {
+    // "2026-07-07" -> "20260707" (format 102 de la norme CII)
+    return (iso || new Date().toISOString().slice(0, 10)).replace(/-/g, "");
+  }
+
+  function amount(n) { return (Math.round(n * 100) / 100).toFixed(2); }
+
+  function sirenOf(siret) {
+    var digits = String(siret || "").replace(/\D/g, "");
+    return digits.length >= 9 ? digits.slice(0, 9) : "";
+  }
+
+  function partyXml(tag, name, addressText, siret) {
+    var lines = String(addressText || "").split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
+    var siren = sirenOf(siret);
+    var postcodeMatch = (addressText || "").match(/\b(\d{5})\b/);
+    var xml = "      <ram:" + tag + ">\n" +
+      "        <ram:Name>" + xmlEscape(name || "") + "</ram:Name>\n";
+    if (siren) {
+      xml += "        <ram:SpecifiedLegalOrganization>\n" +
+        "          <ram:ID schemeID=\"0002\">" + siren + "</ram:ID>\n" +
+        "        </ram:SpecifiedLegalOrganization>\n";
+    }
+    xml += "        <ram:PostalTradeAddress>\n";
+    if (postcodeMatch) xml += "          <ram:PostcodeCode>" + postcodeMatch[1] + "</ram:PostcodeCode>\n";
+    if (lines[0]) xml += "          <ram:LineOne>" + xmlEscape(lines[0]) + "</ram:LineOne>\n";
+    if (lines[1]) xml += "          <ram:CityName>" + xmlEscape(lines[lines.length - 1].replace(/\b\d{5}\b\s*/, "").trim() || lines[1]) + "</ram:CityName>\n";
+    xml += "          <ram:CountryID>FR</ram:CountryID>\n" +
+      "        </ram:PostalTradeAddress>\n" +
+      "      </ram:" + tag + ">\n";
+    return xml;
+  }
+
+  function buildFacturX() {
+    var franchise = $("franchiseTva").checked;
+    var vatCategory = franchise ? "E" : "S";
+    var vatRate = franchise ? "0" : "20";
+
+    var items = state.items.filter(function (it) { return it.desc || it.price; });
+    var totalHT = 0;
+    var linesXml = "";
+    items.forEach(function (it, i) {
+      var lineTotal = (it.qty || 0) * (it.price || 0);
+      totalHT += lineTotal;
+      linesXml +=
+        "    <ram:IncludedSupplyChainTradeLineItem>\n" +
+        "      <ram:AssociatedDocumentLineDocument>\n" +
+        "        <ram:LineID>" + (i + 1) + "</ram:LineID>\n" +
+        "      </ram:AssociatedDocumentLineDocument>\n" +
+        "      <ram:SpecifiedTradeProduct>\n" +
+        "        <ram:Name>" + xmlEscape(it.desc || "Prestation") + "</ram:Name>\n" +
+        "      </ram:SpecifiedTradeProduct>\n" +
+        "      <ram:SpecifiedLineTradeAgreement>\n" +
+        "        <ram:NetPriceProductTradePrice>\n" +
+        "          <ram:ChargeAmount>" + amount(it.price || 0) + "</ram:ChargeAmount>\n" +
+        "        </ram:NetPriceProductTradePrice>\n" +
+        "      </ram:SpecifiedLineTradeAgreement>\n" +
+        "      <ram:SpecifiedLineTradeDelivery>\n" +
+        "        <ram:BilledQuantity unitCode=\"C62\">" + (it.qty || 0) + "</ram:BilledQuantity>\n" +
+        "      </ram:SpecifiedLineTradeDelivery>\n" +
+        "      <ram:SpecifiedLineTradeSettlement>\n" +
+        "        <ram:ApplicableTradeTax>\n" +
+        "          <ram:TypeCode>VAT</ram:TypeCode>\n" +
+        "          <ram:CategoryCode>" + vatCategory + "</ram:CategoryCode>\n" +
+        "          <ram:RateApplicablePercent>" + vatRate + "</ram:RateApplicablePercent>\n" +
+        "        </ram:ApplicableTradeTax>\n" +
+        "        <ram:SpecifiedTradeSettlementLineMonetarySummation>\n" +
+        "          <ram:LineTotalAmount>" + amount(lineTotal) + "</ram:LineTotalAmount>\n" +
+        "        </ram:SpecifiedTradeSettlementLineMonetarySummation>\n" +
+        "      </ram:SpecifiedLineTradeSettlement>\n" +
+        "    </ram:IncludedSupplyChainTradeLineItem>\n";
+    });
+
+    var tva = franchise ? 0 : totalHT * 0.20;
+    var ttc = totalHT + tva;
+    var notes = $("notes").value;
+
+    var xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"\n' +
+      '  xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"\n' +
+      '  xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100">\n' +
+      "  <rsm:ExchangedDocumentContext>\n" +
+      "    <ram:GuidelineSpecifiedDocumentContextParameter>\n" +
+      "      <ram:ID>urn:factur-x.eu:1p0:basic</ram:ID>\n" +
+      "    </ram:GuidelineSpecifiedDocumentContextParameter>\n" +
+      "  </rsm:ExchangedDocumentContext>\n" +
+      "  <rsm:ExchangedDocument>\n" +
+      "    <ram:ID>" + xmlEscape($("docNumber").value || "SANS-NUMERO") + "</ram:ID>\n" +
+      "    <ram:TypeCode>380</ram:TypeCode>\n" +
+      "    <ram:IssueDateTime>\n" +
+      '      <udt:DateTimeString format="102">' + dt102($("docDate").value) + "</udt:DateTimeString>\n" +
+      "    </ram:IssueDateTime>\n" +
+      (notes ? "    <ram:IncludedNote>\n      <ram:Content>" + xmlEscape(notes) + "</ram:Content>\n    </ram:IncludedNote>\n" : "") +
+      "  </rsm:ExchangedDocument>\n" +
+      "  <rsm:SupplyChainTradeTransaction>\n" +
+      linesXml +
+      "    <ram:ApplicableHeaderTradeAgreement>\n" +
+      partyXml("SellerTradeParty", $("fromName").value, $("fromAddress").value, $("fromSiret").value) +
+      partyXml("BuyerTradeParty", $("toName").value, $("toAddress").value, $("toSiret").value) +
+      "    </ram:ApplicableHeaderTradeAgreement>\n" +
+      "    <ram:ApplicableHeaderTradeDelivery/>\n" +
+      "    <ram:ApplicableHeaderTradeSettlement>\n" +
+      "      <ram:InvoiceCurrencyCode>EUR</ram:InvoiceCurrencyCode>\n" +
+      "      <ram:ApplicableTradeTax>\n" +
+      "        <ram:CalculatedAmount>" + amount(tva) + "</ram:CalculatedAmount>\n" +
+      "        <ram:TypeCode>VAT</ram:TypeCode>\n" +
+      (franchise ? "        <ram:ExemptionReason>TVA non applicable, art. 293 B du CGI</ram:ExemptionReason>\n" : "") +
+      "        <ram:BasisAmount>" + amount(totalHT) + "</ram:BasisAmount>\n" +
+      "        <ram:CategoryCode>" + vatCategory + "</ram:CategoryCode>\n" +
+      "        <ram:RateApplicablePercent>" + vatRate + "</ram:RateApplicablePercent>\n" +
+      "      </ram:ApplicableTradeTax>\n" +
+      ($("dueDate").value ?
+        "      <ram:SpecifiedTradePaymentTerms>\n" +
+        "        <ram:DueDateDateTime>\n" +
+        '          <udt:DateTimeString format="102">' + dt102($("dueDate").value) + "</udt:DateTimeString>\n" +
+        "        </ram:DueDateDateTime>\n" +
+        "      </ram:SpecifiedTradePaymentTerms>\n" : "") +
+      "      <ram:SpecifiedTradeSettlementHeaderMonetarySummation>\n" +
+      "        <ram:LineTotalAmount>" + amount(totalHT) + "</ram:LineTotalAmount>\n" +
+      "        <ram:TaxBasisTotalAmount>" + amount(totalHT) + "</ram:TaxBasisTotalAmount>\n" +
+      '        <ram:TaxTotalAmount currencyID="EUR">' + amount(tva) + "</ram:TaxTotalAmount>\n" +
+      "        <ram:GrandTotalAmount>" + amount(ttc) + "</ram:GrandTotalAmount>\n" +
+      "        <ram:DuePayableAmount>" + amount(ttc) + "</ram:DuePayableAmount>\n" +
+      "      </ram:SpecifiedTradeSettlementHeaderMonetarySummation>\n" +
+      "    </ram:ApplicableHeaderTradeSettlement>\n" +
+      "  </rsm:SupplyChainTradeTransaction>\n" +
+      "</rsm:CrossIndustryInvoice>\n";
+    return xml;
+  }
+
+  function downloadFacturX() {
+    var xml = buildFacturX();
+    var num = ($("docNumber").value || "sans-numero").replace(/[^\w.-]+/g, "-");
+    var blob = new Blob([xml], { type: "application/xml" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "facture-" + num + ".xml";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   /* ---------- Événements ---------- */
   fields.forEach(function (f) {
     $(f).addEventListener("input", function () { refresh(); save(); });
@@ -638,6 +796,7 @@
   });
   $("itemsBody").addEventListener("input", save);
   $("printBtn").addEventListener("click", function () { window.print(); });
+  $("facturxBtn").addEventListener("click", downloadFacturX);
   $("resetBtn").addEventListener("click", function () {
     if (!confirm("Effacer toutes les données saisies ?")) return;
     try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignoré */ }

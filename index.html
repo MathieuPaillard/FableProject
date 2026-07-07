@@ -142,6 +142,28 @@
   }
   .btn.small { padding: 6px 12px; font-size: 13px; }
   .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  .hist-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 2px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13.5px;
+  }
+  .hist-row .hist-info { flex: 1; min-width: 0; }
+  .hist-row .hist-info .hist-num { font-weight: 700; }
+  .hist-row .hist-info .hist-sub { color: var(--ink-soft); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hist-row .hist-total { font-weight: 600; white-space: nowrap; }
+  .hist-row button {
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 12.5px;
+    cursor: pointer;
+    color: var(--accent);
+  }
+  .hist-row button.hist-del { color: #c0392b; }
   .hint { font-size: 12.5px; color: var(--ink-soft); margin-top: 8px; }
   .saved-flash { color: var(--ok); font-size: 13px; font-weight: 600; display: none; }
 
@@ -276,7 +298,10 @@
       <div class="row2">
         <div>
           <label for="docNumber">Numéro</label>
-          <input type="text" id="docNumber" placeholder="2026-001">
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="docNumber" placeholder="2026-001">
+            <button type="button" class="btn ghost small" id="autoNumBtn" title="Attribuer automatiquement le numéro suivant (continuité de la séquence)">auto</button>
+          </div>
         </div>
         <div>
           <label for="docDate">Date d'émission</label>
@@ -327,6 +352,10 @@
 
     <div class="panel">
       <h2>Client</h2>
+      <label for="clientSelect">Reprendre un client enregistré</label>
+      <select id="clientSelect">
+        <option value="">— Nouveau client —</option>
+      </select>
       <label for="toName">Nom / société</label>
       <input type="text" id="toName" placeholder="ACME SARL">
       <label for="toAddress">Adresse</label>
@@ -358,10 +387,23 @@
       <div class="actions">
         <button type="button" class="btn" id="printBtn">🖨️ Imprimer / PDF</button>
         <button type="button" class="btn ghost" id="facturxBtn">⬇ Export Factur-X (XML)</button>
+        <button type="button" class="btn ghost" id="saveDocBtn">✓ Enregistrer dans l'historique</button>
+        <button type="button" class="btn ghost" id="newDocBtn">+ Nouvelle facture</button>
         <button type="button" class="btn ghost" id="resetBtn">Réinitialiser</button>
       </div>
       <p class="hint">💾 Tout est enregistré automatiquement <strong>dans votre navigateur uniquement</strong> — aucune donnée n'est envoyée sur Internet. Pour obtenir un PDF : « Imprimer / PDF » puis choisissez « Enregistrer au format PDF ».</p>
       <p class="hint">🇪🇺 <strong>Factur-X</strong> : exporte votre facture en XML structuré (profil BASIC), le format de la réforme de la facturation électronique 2026-2027. Pour l'envoi légal à un client professionnel à partir de 2027, ce fichier devra être déposé sur votre plateforme de dématérialisation (PDP). <a href="facturation-electronique-auto-entrepreneur.html">En savoir plus</a>.</p>
+    </div>
+
+    <div class="panel">
+      <h2>📁 Historique</h2>
+      <div id="historyList"><p class="hint">Aucun document enregistré pour l'instant. Vos factures s'enregistrent ici automatiquement à l'impression ou à l'export.</p></div>
+      <div class="actions" style="margin-top:14px;">
+        <button type="button" class="btn ghost small" id="exportDataBtn">⬇ Exporter mes données (JSON)</button>
+        <button type="button" class="btn ghost small" id="importDataBtn">⬆ Importer une sauvegarde</button>
+        <input type="file" id="importFile" accept="application/json,.json" style="display:none;">
+      </div>
+      <p class="hint">L'historique vit <strong>uniquement dans ce navigateur</strong>. Pensez à exporter régulièrement votre sauvegarde (changement d'ordinateur, nettoyage du navigateur…).</p>
     </div>
   </div>
 
@@ -438,6 +480,9 @@
 
   <h3>Facture ou devis ?</h3>
   <p>Basculez en un clic entre facture et devis. Le devis reprend les mêmes informations avec une mention de validité et un encart de signature « Bon pour accord », comme l'exigent les usages professionnels.</p>
+
+  <h3>Un vrai logiciel, sans compte ni serveur</h3>
+  <p>FactureLibre mémorise vos factures <strong>dans votre navigateur</strong> : historique de vos documents, <strong>numérotation automatique continue</strong> (l'exigence n° 1 de l'administration), carnet de clients réutilisables, duplication en un clic, et sauvegarde/restauration par fichier pour changer d'ordinateur. Tout cela sans créer de compte : vos données ne sont jamais envoyées sur un serveur.</p>
 
   <h3>Prêt pour la facturation électronique (2026-2027)</h3>
   <p>FactureLibre exporte vos factures au format <strong>Factur-X (XML structuré, profil BASIC)</strong> — le format officiel de la réforme de la facturation électronique. Vos factures sont prêtes à être déposées sur votre future plateforme de dématérialisation, dès aujourd'hui.</p>
@@ -781,6 +826,229 @@
     URL.revokeObjectURL(url);
   }
 
+  /* ---------- Historique, carnet clients, sauvegarde (local uniquement) ---------- */
+  var DOCS_KEY = "facturelibre_docs_v1";
+  var CLIENTS_KEY = "facturelibre_clients_v1";
+
+  function readJson(key, fallback) {
+    try {
+      var raw = localStorage.getItem(key);
+      var val = raw ? JSON.parse(raw) : null;
+      return Array.isArray(val) ? val : fallback;
+    } catch (e) { return fallback; }
+  }
+  function writeJson(key, val) {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* stockage indisponible */ }
+  }
+
+  function currentTotal() {
+    var totalHT = 0;
+    state.items.forEach(function (it) { totalHT += (it.qty || 0) * (it.price || 0); });
+    return $("franchiseTva").checked ? totalHT : totalHT * 1.20;
+  }
+
+  function snapshotDoc() {
+    var doc = {
+      docType: state.docType,
+      items: JSON.parse(JSON.stringify(state.items)),
+      franchiseTva: $("franchiseTva").checked,
+      total: Math.round(currentTotal() * 100) / 100,
+      savedAt: new Date().toISOString()
+    };
+    fields.forEach(function (f) { doc[f] = $(f).value; });
+    return doc;
+  }
+
+  function saveToHistory() {
+    var doc = snapshotDoc();
+    var docs = readJson(DOCS_KEY, []);
+    var key = doc.docType + "|" + (doc.docNumber || doc.savedAt);
+    var idx = -1;
+    docs.forEach(function (d, i) {
+      if (d.docNumber && doc.docNumber && d.docType === doc.docType && d.docNumber === doc.docNumber) idx = i;
+    });
+    if (idx >= 0) docs[idx] = doc; else docs.push(doc);
+    writeJson(DOCS_KEY, docs);
+
+    if (doc.toName) {
+      var clients = readJson(CLIENTS_KEY, []);
+      var ci = -1;
+      clients.forEach(function (c, i) { if (c.name === doc.toName) ci = i; });
+      var client = { name: doc.toName, address: doc.toAddress, siret: doc.toSiret };
+      if (ci >= 0) clients[ci] = client; else clients.push(client);
+      writeJson(CLIENTS_KEY, clients);
+    }
+    renderHistory();
+    renderClientSelect();
+    var flash = $("savedFlash");
+    flash.style.display = "block";
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () { flash.style.display = "none"; }, 1500);
+  }
+
+  function openDoc(doc, asNew) {
+    state.docType = doc.docType === "devis" ? "devis" : "facture";
+    state.items = Array.isArray(doc.items) && doc.items.length ? JSON.parse(JSON.stringify(doc.items)) : [{ desc: "", qty: 1, price: 0 }];
+    fields.forEach(function (f) { if (typeof doc[f] === "string") $(f).value = doc[f]; });
+    $("franchiseTva").checked = doc.franchiseTva !== false;
+    if (asNew) {
+      $("docNumber").value = nextNumber();
+      $("docDate").value = new Date().toISOString().slice(0, 10);
+      $("dueDate").value = "";
+    }
+    renderItemRows();
+    refresh();
+    save();
+  }
+
+  function nextNumber() {
+    var docs = readJson(DOCS_KEY, []);
+    var best = null; // { prefix, num, width }
+    docs.concat([{ docNumber: $("docNumber").value }]).forEach(function (d) {
+      var m = String(d.docNumber || "").match(/^(.*?)(\d+)\s*$/);
+      if (!m) return;
+      var num = parseInt(m[2], 10);
+      if (!best || num > best.num) best = { prefix: m[1], num: num, width: m[2].length };
+    });
+    if (!best) return new Date().getFullYear() + "-001";
+    var next = String(best.num + 1);
+    while (next.length < best.width) next = "0" + next;
+    return best.prefix + next;
+  }
+
+  function renderHistory() {
+    var docs = readJson(DOCS_KEY, []);
+    var box = $("historyList");
+    box.innerHTML = "";
+    if (!docs.length) {
+      var p = document.createElement("p");
+      p.className = "hint";
+      p.textContent = "Aucun document enregistré pour l'instant. Vos factures s'enregistrent ici automatiquement à l'impression ou à l'export.";
+      box.appendChild(p);
+      return;
+    }
+    docs.slice().reverse().forEach(function (doc) {
+      var row = document.createElement("div");
+      row.className = "hist-row";
+
+      var info = document.createElement("div");
+      info.className = "hist-info";
+      var num = document.createElement("div");
+      num.className = "hist-num";
+      num.textContent = (doc.docType === "devis" ? "Devis " : "Facture ") + (doc.docNumber || "sans n°");
+      var sub = document.createElement("div");
+      sub.className = "hist-sub";
+      sub.textContent = (doc.toName || "—") + " · " + frDate(doc.docDate);
+      info.appendChild(num);
+      info.appendChild(sub);
+
+      var total = document.createElement("div");
+      total.className = "hist-total";
+      total.textContent = euros(doc.total || 0);
+
+      var btnOpen = document.createElement("button");
+      btnOpen.type = "button";
+      btnOpen.textContent = "Rouvrir";
+      btnOpen.addEventListener("click", function () { openDoc(doc, false); });
+
+      var btnDup = document.createElement("button");
+      btnDup.type = "button";
+      btnDup.textContent = "Dupliquer";
+      btnDup.title = "Nouvelle facture pré-remplie avec le numéro suivant";
+      btnDup.addEventListener("click", function () { openDoc(doc, true); });
+
+      var btnDel = document.createElement("button");
+      btnDel.type = "button";
+      btnDel.className = "hist-del";
+      btnDel.textContent = "×";
+      btnDel.title = "Supprimer de l'historique";
+      btnDel.addEventListener("click", function () {
+        if (!confirm("Supprimer « " + num.textContent + " » de l'historique ?")) return;
+        var all = readJson(DOCS_KEY, []);
+        var kept = all.filter(function (d) { return d.savedAt !== doc.savedAt; });
+        writeJson(DOCS_KEY, kept);
+        renderHistory();
+      });
+
+      row.appendChild(info);
+      row.appendChild(total);
+      row.appendChild(btnOpen);
+      row.appendChild(btnDup);
+      row.appendChild(btnDel);
+      box.appendChild(row);
+    });
+  }
+
+  function renderClientSelect() {
+    var clients = readJson(CLIENTS_KEY, []);
+    var sel = $("clientSelect");
+    var current = sel.value;
+    sel.innerHTML = "";
+    var opt0 = document.createElement("option");
+    opt0.value = "";
+    opt0.textContent = "— Nouveau client —";
+    sel.appendChild(opt0);
+    clients.forEach(function (c, i) {
+      var opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = c.name;
+      sel.appendChild(opt);
+    });
+    sel.value = current && sel.querySelector('option[value="' + current + '"]') ? current : "";
+  }
+
+  function newInvoice() {
+    state.docType = "facture";
+    state.items = [{ desc: "", qty: 1, price: 0 }];
+    $("toName").value = "";
+    $("toAddress").value = "";
+    $("toSiret").value = "";
+    $("notes").value = "";
+    $("docNumber").value = nextNumber();
+    $("docDate").value = new Date().toISOString().slice(0, 10);
+    $("dueDate").value = "";
+    $("clientSelect").value = "";
+    renderItemRows();
+    refresh();
+    save();
+  }
+
+  function exportData() {
+    var payload = {
+      app: "facturelibre",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      current: (function () { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) { return null; } })(),
+      docs: readJson(DOCS_KEY, []),
+      clients: readJson(CLIENTS_KEY, [])
+    };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "facturelibre-sauvegarde-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function importData(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var payload;
+      try { payload = JSON.parse(reader.result); } catch (e) { alert("Fichier illisible : ce n'est pas une sauvegarde FactureLibre valide."); return; }
+      if (!payload || payload.app !== "facturelibre") { alert("Ce fichier n'est pas une sauvegarde FactureLibre."); return; }
+      var nb = Array.isArray(payload.docs) ? payload.docs.length : 0;
+      if (!confirm("Restaurer cette sauvegarde (" + nb + " document(s)) ? Les données actuelles de ce navigateur seront remplacées.")) return;
+      writeJson(DOCS_KEY, Array.isArray(payload.docs) ? payload.docs : []);
+      writeJson(CLIENTS_KEY, Array.isArray(payload.clients) ? payload.clients : []);
+      try { if (payload.current) localStorage.setItem(STORAGE_KEY, JSON.stringify(payload.current)); } catch (e) { /* ignoré */ }
+      location.reload();
+    };
+    reader.readAsText(file);
+  }
+
   /* ---------- Événements ---------- */
   fields.forEach(function (f) {
     $(f).addEventListener("input", function () { refresh(); save(); });
@@ -795,10 +1063,29 @@
     save();
   });
   $("itemsBody").addEventListener("input", save);
-  $("printBtn").addEventListener("click", function () { window.print(); });
-  $("facturxBtn").addEventListener("click", downloadFacturX);
+  $("printBtn").addEventListener("click", function () { saveToHistory(); window.print(); });
+  $("facturxBtn").addEventListener("click", function () { saveToHistory(); downloadFacturX(); });
+  $("saveDocBtn").addEventListener("click", saveToHistory);
+  $("newDocBtn").addEventListener("click", newInvoice);
+  $("autoNumBtn").addEventListener("click", function () { $("docNumber").value = nextNumber(); refresh(); save(); });
+  $("clientSelect").addEventListener("change", function () {
+    var clients = readJson(CLIENTS_KEY, []);
+    var c = clients[parseInt($("clientSelect").value, 10)];
+    if (!c) return;
+    $("toName").value = c.name || "";
+    $("toAddress").value = c.address || "";
+    $("toSiret").value = c.siret || "";
+    refresh();
+    save();
+  });
+  $("exportDataBtn").addEventListener("click", exportData);
+  $("importDataBtn").addEventListener("click", function () { $("importFile").click(); });
+  $("importFile").addEventListener("change", function () {
+    if ($("importFile").files.length) importData($("importFile").files[0]);
+    $("importFile").value = "";
+  });
   $("resetBtn").addEventListener("click", function () {
-    if (!confirm("Effacer toutes les données saisies ?")) return;
+    if (!confirm("Effacer le document en cours ? (L'historique et le carnet de clients sont conservés.)")) return;
     try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignoré */ }
     location.reload();
   });
@@ -809,6 +1096,8 @@
     $("docDate").value = new Date().toISOString().slice(0, 10);
   }
   renderItemRows();
+  renderHistory();
+  renderClientSelect();
   refresh();
 })();
 </script>

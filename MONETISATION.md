@@ -25,16 +25,12 @@ l'outil livré dans ce dépôt. Coût de fonctionnement : **0 €**.
    Custom domain). Un domaine propre est quasi indispensable pour le
    référencement Google.
 
-## Étape 2 — Premier canal de revenu : la donation (30 minutes)
+## Étape 2 — Premier canal de revenu : la donation ✅ FAIT
 
-Le plus simple, sans statut juridique complexe à créer :
-
-1. Créer un compte **Ko-fi** (ko-fi.com) ou **Buy Me a Coffee** — gratuits,
-   les paiements arrivent via PayPal/Stripe.
-2. Remplacer le lien `#` du bloc « soutenir le projet » dans `index.html`
-   (id `supportLink`) par votre lien Ko-fi.
-3. Revenu attendu : faible au début, mais réel dès qu'il y a du trafic —
-   c'est le « premier euro » le plus rapide.
+Compte Ko-fi créé et branché sur le site : le bloc « soutenir le projet »
+de `index.html` pointe vers https://ko-fi.com/mathieupaillard (paiements
+reçus via PayPal). Revenu attendu : faible au début, mais réel dès qu'il y a
+du trafic — c'est le « premier euro » le plus rapide.
 
 ## Étape 3 — Affiliation (le vrai potentiel de revenu)
 
